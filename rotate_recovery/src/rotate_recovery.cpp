@@ -55,8 +55,7 @@ RotateRecovery::RotateRecovery(): local_costmap_(NULL), initialized_(false), wor
 {
 }
 
-void RotateRecovery::initialize(std::string name, tf2_ros::Buffer*,
-                                costmap_2d::Costmap2DROS*, costmap_2d::Costmap2DROS* local_costmap)
+void RotateRecovery::initialize(std::string name, tf2_ros::Buffer*, costmap_2d::Costmap2DROS*, costmap_2d::Costmap2DROS* local_costmap)
 {
   if (!initialized_)
   {
@@ -117,67 +116,18 @@ void RotateRecovery::runBehavior()
 
   bool got_180 = false;
 
-  while (n.ok() &&
-         (!got_180 ||
-          std::fabs(angles::shortest_angular_distance(current_angle, start_angle)) > tolerance_))
+   while (n.ok())
   {
-    // Update Current Angle
-    local_costmap_->getRobotPose(global_pose);
-    current_angle = tf2::getYaw(global_pose.pose.orientation);
-
-    // compute the distance left to rotate
-    double dist_left;
-    if (!got_180)
-    {
-      // If we haven't hit 180 yet, we need to rotate a half circle plus the distance to the 180 point
-      double distance_to_180 = std::fabs(angles::shortest_angular_distance(current_angle, start_angle + M_PI));
-      dist_left = M_PI + distance_to_180;
-
-      if (distance_to_180 < tolerance_)
-      {
-        got_180 = true;
-      }
-    }
-    else
-    {
-      // If we have hit the 180, we just have the distance back to the start
-      dist_left = std::fabs(angles::shortest_angular_distance(current_angle, start_angle));
-    }
-
-    double x = global_pose.pose.position.x, y = global_pose.pose.position.y;
-
-    // check if that velocity is legal by forward simulating
-    double sim_angle = 0.0;
-    while (sim_angle < dist_left)
-    {
-      double theta = current_angle + sim_angle;
-
-      // make sure that the point is legal, if it isn't... we'll abort
-      double footprint_cost = world_model_->footprintCost(x, y, theta, local_costmap_->getRobotFootprint(), 0.0, 0.0);
-      if (footprint_cost < 0.0)
-      {
-        ROS_ERROR("Rotate recovery can't rotate in place because there is a potential collision. Cost: %.2f",
-                  footprint_cost);
-        return;
-      }
-
-      sim_angle += sim_granularity_;
-    }
-
-    // compute the velocity that will let us stop by the time we reach the goal
-    double vel = sqrt(2 * acc_lim_th_ * dist_left);
-
-    // make sure that this velocity falls within the specified limits
-    vel = std::min(std::max(vel, min_rotational_vel_), max_rotational_vel_);
-
+    ROS_ERROR("Robot Stuck");
+    
     geometry_msgs::Twist cmd_vel;
     cmd_vel.linear.x = 0.0;
     cmd_vel.linear.y = 0.0;
-    cmd_vel.angular.z = vel;
+    cmd_vel.angular.z = 0;
 
     vel_pub.publish(cmd_vel);
-
+    return;
     r.sleep();
-  }
+  }      
 }
 };  // namespace rotate_recovery
